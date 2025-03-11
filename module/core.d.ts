@@ -64,9 +64,11 @@ export declare function getValueByPointer(document: any, pointer: string): any;
  * @param validateOperation `false` is without validation, `true` to use default jsonpatch's validation, or you can pass a `validateOperation` callback to be used for validation.
  * @param mutateDocument Whether to mutate the original document or clone it before applying
  * @param banPrototypeModifications Whether to ban modifications to `__proto__`, defaults to `true`.
+ * @param index Used internally for error handling, indicates the operation index in the patch sequence
+ * @param createObject When `true`, missing path segments are created as empty objects; when a function is provided, it's called with `(document, operation, key)` parameters and its return value is used for the missing segment.
  * @return `{newDocument, result}` after the operation
  */
-export declare function applyOperation<T>(document: T, operation: Operation, validateOperation?: boolean | Validator<T>, mutateDocument?: boolean, banPrototypeModifications?: boolean, index?: number): OperationResult<T>;
+export declare function applyOperation<T>(document: T, operation: Operation, validateOperation?: boolean | Validator<T>, mutateDocument?: boolean, banPrototypeModifications?: boolean, index?: number, createObject?: boolean | ((document: any, operation: Operation, key: string | number) => any)): OperationResult<T>;
 /**
  * Apply a full JSON Patch array on a JSON document.
  * Returns the {newDocument, result} of the patch.

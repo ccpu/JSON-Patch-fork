@@ -114,9 +114,11 @@ export function getValueByPointer(document, pointer) {
  * @param validateOperation `false` is without validation, `true` to use default jsonpatch's validation, or you can pass a `validateOperation` callback to be used for validation.
  * @param mutateDocument Whether to mutate the original document or clone it before applying
  * @param banPrototypeModifications Whether to ban modifications to `__proto__`, defaults to `true`.
+ * @param index Used internally for error handling, indicates the operation index in the patch sequence
+ * @param createObject When `true`, missing path segments are created as empty objects; when a function is provided, it's called with `(document, operation, key)` parameters and its return value is used for the missing segment.
  * @return `{newDocument, result}` after the operation
  */
-export function applyOperation(document, operation, validateOperation, mutateDocument, banPrototypeModifications, index) {
+export function applyOperation(document, operation, validateOperation, mutateDocument, banPrototypeModifications, index, createObject) {
     if (validateOperation === void 0) { validateOperation = false; }
     if (mutateDocument === void 0) { mutateDocument = true; }
     if (banPrototypeModifications === void 0) { banPrototypeModifications = true; }
@@ -197,10 +199,6 @@ export function applyOperation(document, operation, validateOperation, mutateDoc
             if (key && key.indexOf('~') != -1) {
                 key = unescapePathComponent(key);
             }
-            // // If this is the last segment and it's empty (trailing slash)
-            // if (key === "" && t === keys.length - 1) {
-            //   key = "";
-            // }
             if (banPrototypeModifications &&
                 (key == '__proto__' ||
                     (key == 'prototype' && t > 0 && keys[t - 1] == 'constructor'))) {
@@ -259,6 +257,14 @@ export function applyOperation(document, operation, validateOperation, mutateDoc
                         throw new JsonPatchError("Test operation failed", 'TEST_OPERATION_FAILED', index, operation, document);
                     }
                     return returnValue;
+                }
+            }
+            if (obj[key] === undefined && createObject) {
+                if (typeof createObject === 'function') {
+                    obj[key] = createObject(obj, operation, key);
+                }
+                else {
+                    obj[key] = {};
                 }
             }
             obj = obj[key];

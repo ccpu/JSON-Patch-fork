@@ -960,6 +960,110 @@ describe('core - using applyOperation', function () {
             city: 'Vancouver'
         });
     });
+
+    it('should create missing path segments with createObject function', function () {
+        const obj = {};
+
+        // Custom function that creates objects with metadata based on the key
+        const createObjectFn = (doc, operation, key) => {
+            return {
+                _type: typeof key === 'string' ? 'object' : 'array',
+                _key: key,
+                _created: true
+            };
+        };
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/deeply/nested/property',
+            value: 'test value'
+        }, false, true, true, 0, createObjectFn).newDocument;
+
+        expect(newObj).toEqual({
+            deeply: {
+                _type: 'object',
+                _key: 'deeply',
+                _created: true,
+                nested: {
+                    _type: 'object',
+                    _key: 'nested',
+                    _created: true,
+                    property: 'test value'
+                }
+            }
+        });
+    });
+
+    it('should create missing path segments with createObject=true', function () {
+        const obj = {};
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/deeply/nested/property',
+            value: 'test value'
+        }, false, true, true, 0, true).newDocument;
+
+        expect(newObj).toEqual({
+            deeply: {
+                nested: {
+                    property: 'test value'
+                }
+            }
+        });
+    });
+
+    it('should only create missing path segments and preserve existing ones', function () {
+        // Object with some existing nested structure
+        const obj = {
+            existing: {
+                nested: 'should not be modified',
+                partial: {
+                    // This path exists but not complete
+                }
+            }
+        };
+
+        // Custom function that adds metadata to created objects
+        const createObjectFn = (doc, operation, key) => {
+            return {
+                _created: true,
+                _key: key
+            };
+        };
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/existing/partial/deeply/nested/property',
+            value: 'new value'
+        }, false, true, true, 0, createObjectFn).newDocument;
+
+        // Verify the existing structure is preserved
+        expect(newObj.existing.nested).toEqual('should not be modified');
+
+        // Verify only missing segments were created with our function
+        expect(newObj.existing.partial._created).toBeUndefined(); // This existed already
+        expect(newObj.existing.partial.deeply._created).toEqual(true);
+        expect(newObj.existing.partial.deeply.nested._created).toEqual(true);
+        expect(newObj.existing.partial.deeply.nested.property).toEqual('new value');
+
+        // Full expected structure
+        expect(newObj).toEqual({
+            existing: {
+                nested: 'should not be modified',
+                partial: {
+                    deeply: {
+                        _created: true,
+                        _key: 'deeply',
+                        nested: {
+                            _created: true,
+                            _key: 'nested',
+                            property: 'new value'
+                        }
+                    }
+                }
+            }
+        });
+    });
 });
 
 describe('core', function () {
