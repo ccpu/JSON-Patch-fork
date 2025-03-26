@@ -1012,6 +1012,63 @@ describe('core - using applyOperation', function () {
         });
     });
 
+    it('should create an array when path contains a simple numeric index', function () {
+        const obj = {};
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/a/0',
+            value: 'test value'
+        }, false, true, true, 0, true).newDocument;
+
+        expect(newObj).toEqual({
+            a: ['test value']
+        });
+    });
+
+    it('should create missing path segments with arrays when path contains numeric indices', function () {
+        const obj = {};
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/deeply/nested/0/property',
+            value: 'test value'
+        }, false, true, true, 0, true).newDocument;
+
+        expect(newObj).toEqual({
+            deeply: {
+                nested: [
+                    {
+                        property: 'test value'
+                    }
+                ]
+            }
+        });
+    });
+
+    it('should create missing path segments with multiple arrays when path contains multiple numeric indices', function () {
+        const obj = {};
+
+        const newObj = jsonpatch.applyOperation(obj, {
+            op: 'add',
+            path: '/deeply/0/nested/1/property',
+            value: 'test value'
+        }, false, true, true, 0, true).newDocument;
+
+        expect(newObj).toEqual({
+            deeply: [
+                {
+                    nested: [
+                        undefined, // 0th index is empty
+                        {
+                            property: 'test value'
+                        }
+                    ]
+                }
+            ]
+        });
+    });
+
     it('should only create missing path segments and preserve existing ones', function () {
         // Object with some existing nested structure
         const obj = {

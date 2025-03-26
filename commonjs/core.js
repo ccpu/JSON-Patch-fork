@@ -274,7 +274,14 @@ function applyOperation(document, operation, validateOperation, mutateDocument, 
                     obj[key] = createObject(obj, operation, key);
                 }
                 else {
-                    obj[key] = {};
+                    // Check if the next key in path is a number (array index)
+                    var nextKey = keys[t];
+                    if (nextKey && (0, helpers_js_1.isInteger)(nextKey) && parseInt(nextKey) >= 0) {
+                        obj[key] = []; // Create array if next key is numeric index
+                    }
+                    else {
+                        obj[key] = {}; // Create object otherwise
+                    }
                 }
             }
             obj = obj[key];

@@ -333,11 +333,17 @@ export function applyOperation<T>(document: T, operation: Operation, validateOpe
         }
       }
 
-      if(obj[key]===undefined&&createObject) {
+      if(obj[key] === undefined && createObject) {
         if(typeof createObject === 'function') {
           obj[key] = createObject(obj, operation, key);
         } else {
-          obj[key] = {}
+          // Check if the next key in path is a number (array index)
+          const nextKey = keys[t];
+          if (nextKey && isInteger(nextKey) && parseInt(nextKey) >= 0) {
+            obj[key] = []; // Create array if next key is numeric index
+          } else {
+            obj[key] = {}; // Create object otherwise
+          }
         }
       }
 
