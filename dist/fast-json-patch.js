@@ -1,4 +1,4 @@
-/*! fast-json-patch, version: 3.1.2 */
+/*! fast-json-patch, version: 3.2.2 */
 var jsonpatch;
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
@@ -255,6 +255,10 @@ var objOps = {
         return the removed value, this can be taxing performance-wise,
         and is potentially unneeded */
         var removed = getValueByPointer(document, this.path);
+        // Check for potential circular reference
+        if (this.from !== this.path && this.path.startsWith(this.from + '/')) {
+            throw new exports.JsonPatchError("Cannot move to a path that is a descendant of the source", 'OPERATION_PATH_CREATES_CIRCULAR_REFERENCE', 0, this, document);
+        }
         if (removed) {
             removed = (0, helpers_js_1._deepClone)(removed);
         }
@@ -263,9 +267,16 @@ var objOps = {
         return { newDocument: document, removed: removed };
     },
     copy: function (obj, key, document) {
-        var valueToCopy = getValueByPointer(document, this.from);
+        var fromValue = getValueByPointer(document, this.from);
+        // Check for potential circular reference
+        if (this.from === "" || this.from === "/") {
+            // Copying from root to a descendant would create a circular reference
+            if (this.path.startsWith("/")) {
+                throw new exports.JsonPatchError("Creating a circular reference", 'OPERATION_PATH_CREATES_CIRCULAR_REFERENCE', 0, this, document);
+            }
+        }
         // enforce copy by value so further operations don't affect source (see issue #177)
-        applyOperation(document, { op: "add", path: this.path, value: (0, helpers_js_1._deepClone)(valueToCopy) });
+        applyOperation(document, { op: "add", path: this.path, value: (0, helpers_js_1._deepClone)(fromValue) });
         return { newDocument: document };
     },
     test: function (obj, key, document) {
@@ -330,9 +341,11 @@ function getValueByPointer(document, pointer) {
  * @param validateOperation `false` is without validation, `true` to use default jsonpatch's validation, or you can pass a `validateOperation` callback to be used for validation.
  * @param mutateDocument Whether to mutate the original document or clone it before applying
  * @param banPrototypeModifications Whether to ban modifications to `__proto__`, defaults to `true`.
+ * @param index Used internally for error handling, indicates the operation index in the patch sequence
+ * @param createObject When `true`, missing path segments are created as empty objects; when a function is provided, it's called with `(document, operation, key)` parameters and its return value is used for the missing segment.
  * @return `{newDocument, result}` after the operation
  */
-function applyOperation(document, operation, validateOperation, mutateDocument, banPrototypeModifications, index) {
+function applyOperation(document, operation, validateOperation, mutateDocument, banPrototypeModifications, index, createObject) {
     if (validateOperation === void 0) { validateOperation = false; }
     if (mutateDocument === void 0) { mutateDocument = true; }
     if (banPrototypeModifications === void 0) { banPrototypeModifications = true; }
@@ -441,8 +454,17 @@ function applyOperation(document, operation, validateOperation, mutateDocument, 
                         throw new exports.JsonPatchError("Expected an unsigned base-10 integer value, making the new referenced value the array element with the zero-based index", "OPERATION_PATH_ILLEGAL_ARRAY_INDEX", index, operation, document);
                     } // only parse key when it's an integer for `arr.prop` to work
                     else if ((0, helpers_js_1.isInteger)(key)) {
+                        // Check for very large index before parsing
+                        if (validateOperation && key.length > 15) { // Simple check for potentially large numbers
+                            throw new exports.JsonPatchError("Array index too large", "OPERATION_PATH_ARRAY_INDEX_TOO_LARGE", index, operation, document);
+                        }
+                        // Now parse it
                         key = ~~key;
                     }
+                }
+                // Keep your existing check for large numbers here too
+                if (validateOperation && typeof key === 'number' && key > Number.MAX_SAFE_INTEGER) {
+                    throw new exports.JsonPatchError("Array index too large", "OPERATION_PATH_ARRAY_INDEX_TOO_LARGE", index, operation, document);
                 }
                 if (t >= len) {
                     if (validateOperation && operation.op === "add" && typeof key === "number" && key > obj.length) {
@@ -462,6 +484,21 @@ function applyOperation(document, operation, validateOperation, mutateDocument, 
                         throw new exports.JsonPatchError("Test operation failed", 'TEST_OPERATION_FAILED', index, operation, document);
                     }
                     return returnValue;
+                }
+            }
+            if (obj[key] === undefined && createObject) {
+                if (typeof createObject === 'function') {
+                    obj[key] = createObject(obj, operation, key);
+                }
+                else {
+                    // Check if the next key in path is a number (array index)
+                    var nextKey = keys[t];
+                    if (nextKey && (0, helpers_js_1.isInteger)(nextKey) && parseInt(nextKey) >= 0) {
+                        obj[key] = []; // Create array if next key is numeric index
+                    }
+                    else {
+                        obj[key] = {}; // Create object otherwise
+                    }
                 }
             }
             obj = obj[key];
